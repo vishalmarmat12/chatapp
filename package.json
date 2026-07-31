@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "concurrently \"npm run dev --prefix server\" \"npm run dev --prefix client\"",
     "mobile": "npm run start --prefix mobile",
+    "mobile:tunnel": "npm run tunnel --prefix mobile",
     "build": "npm install --include=dev --prefix server && npm install --include=dev --prefix client && npm run build --prefix client",
     "start": "node server/server.js",
     "server": "npm run dev --prefix server",
