@@ -1,16 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView, StatusBar, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function CalculatorVault({ onUnlock }) {
   const [display, setDisplay] = useState('0');
   const [equation, setEquation] = useState('');
   const [history, setHistory] = useState('');
-  
   const [savedPasscode, setSavedPasscode] = useState(null);
-  const [setupStep, setSetupStep] = useState(1);
-  const [firstPasscode, setFirstPasscode] = useState('');
-  const [message, setMessage] = useState('');
 
   useEffect(() => {
     loadPasscode();
@@ -21,9 +17,6 @@ export default function CalculatorVault({ onUnlock }) {
       const code = await AsyncStorage.getItem('vault_passcode');
       if (code) {
         setSavedPasscode(code);
-        setMessage('Enter 4-digit passcode & press =');
-      } else {
-        setMessage('Step 1 of 2: Set 4-digit passcode & press =');
       }
     } catch (e) {
       console.log('Error loading vault passcode:', e);
@@ -33,7 +26,7 @@ export default function CalculatorVault({ onUnlock }) {
   const handleNumber = (digit) => {
     if (display === '0' || display === 'Error') {
       setDisplay(digit);
-    } else if (display.length < 12) {
+    } else if (display.length < 14) {
       setDisplay(display + digit);
     }
   };
@@ -55,53 +48,40 @@ export default function CalculatorVault({ onUnlock }) {
   const handleEquals = async () => {
     const cleanDisplay = display.trim();
 
-    // 1. FIRST TIME SETUP MODE
-    if (!savedPasscode) {
-      if (setupStep === 1) {
-        if (/^\d{4}$/.test(cleanDisplay)) {
-          setFirstPasscode(cleanDisplay);
-          setSetupStep(2);
-          setDisplay('0');
-          setMessage('Step 2 of 2: Re-enter passcode & press =');
-        } else {
-          setMessage('Passcode must be 4 digits!');
-        }
+    // 1. Secret Unlock Check
+    if (savedPasscode) {
+      if (cleanDisplay === savedPasscode) {
+        onUnlock();
         return;
-      } else if (setupStep === 2) {
-        if (cleanDisplay === firstPasscode) {
-          await AsyncStorage.setItem('vault_passcode', cleanDisplay);
-          setSavedPasscode(cleanDisplay);
-          setMessage('✅ Passcode Created! Unlocking...');
-          setTimeout(() => onUnlock(), 600);
-        } else {
-          setMessage('❌ Passcodes do not match! Try again.');
-          setSetupStep(1);
-          setFirstPasscode('');
-          setDisplay('0');
-        }
+      }
+    } else {
+      // First time setup - 4 digits sets default passcode and unlocks seamlessly
+      if (/^\d{4}$/.test(cleanDisplay)) {
+        await AsyncStorage.setItem('vault_passcode', cleanDisplay);
+        setSavedPasscode(cleanDisplay);
+        onUnlock();
         return;
       }
     }
 
-    // 2. PASSCODE MATCH
-    if (savedPasscode && cleanDisplay === savedPasscode) {
-      setMessage('✅ Access Granted!');
-      setTimeout(() => onUnlock(), 400);
-      return;
-    }
-
-    // 3. MATH EVALUATION
+    // 2. Standard Math Calculation
     try {
       let fullExpr = equation + display;
       setHistory(`${fullExpr} =`);
-      let sanitized = fullExpr.replace(/×/g, '*').replace(/÷/g, '/').replace(/[^0-9+\-*/%. ]/g, '');
+      let sanitized = fullExpr
+        .replace(/×/g, '*')
+        .replace(/÷/g, '/')
+        .replace(/−/g, '-')
+        .replace(/[^0-9+\-*/%. ]/g, '');
+
       if (!sanitized) {
         setDisplay('0');
         return;
       }
       const result = new Function(`return ${sanitized}`)();
       if (typeof result === 'number' && !isNaN(result) && isFinite(result)) {
-        setDisplay(result.toString());
+        const formatted = Number.isInteger(result) ? result.toString() : parseFloat(result.toFixed(6)).toString();
+        setDisplay(formatted);
       } else {
         setDisplay('Error');
       }
@@ -117,93 +97,124 @@ export default function CalculatorVault({ onUnlock }) {
     setDisplay('0');
   };
 
+  const handlePercent = () => {
+    try {
+      const val = parseFloat(display);
+      if (!isNaN(val)) {
+        setDisplay((val / 100).toString());
+      }
+    } catch {
+      setDisplay('Error');
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>🧮 Calculator</Text>
-        <Text style={styles.messageText}>{message}</Text>
+      <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
+      
+      {/* Top Header Bar matching Android Stock Calculator */}
+      <View style={styles.headerBar}>
+        <TouchableOpacity style={styles.headerIconBtn}>
+          <Text style={styles.headerIconTxt}>⤢</Text>
+        </TouchableOpacity>
+
+        <View style={styles.tabsContainer}>
+          <Text style={styles.activeTab}>Calculator</Text>
+          <Text style={styles.inactiveTab}>Converter</Text>
+        </View>
+
+        <TouchableOpacity style={styles.headerIconBtn}>
+          <Text style={styles.menuIconTxt}>⋮</Text>
+        </TouchableOpacity>
       </View>
 
-      <View style={styles.displayContainer}>
-        <Text style={styles.historyText}>{history || equation || ' '}</Text>
-        <Text style={styles.displayText}>{display}</Text>
+      {/* Screen Display */}
+      <View style={styles.displayArea}>
+        {history ? <Text style={styles.historyTxt}>{history}</Text> : null}
+        <Text style={styles.displayTxt} numberOfLines={1} adjustsFontSizeToFit>
+          {display}
+        </Text>
       </View>
 
-      <View style={styles.grid}>
+      {/* Calculator Keypad */}
+      <View style={styles.keypad}>
         {/* Row 1 */}
         <View style={styles.row}>
-          <TouchableOpacity style={[styles.btn, styles.btnFunc]} onPress={handleClear}>
-            <Text style={styles.btnFuncText}>AC</Text>
+          <TouchableOpacity style={styles.keyBtn} onPress={handleClear}>
+            <Text style={styles.orangeTxt}>AC</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.btn, styles.btnFunc]} onPress={handleDelete}>
-            <Text style={styles.btnFuncText}>DEL</Text>
+          <TouchableOpacity style={styles.keyBtn} onPress={handleDelete}>
+            <Text style={styles.orangeTxt}>⌫</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.btn, styles.btnFunc]} onPress={() => handleOperator('%')}>
-            <Text style={styles.btnFuncText}>%</Text>
+          <TouchableOpacity style={styles.keyBtn} onPress={handlePercent}>
+            <Text style={styles.orangeTxt}>%</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.btn, styles.btnOp]} onPress={() => handleOperator('÷')}>
-            <Text style={styles.btnOpText}>÷</Text>
+          <TouchableOpacity style={styles.keyBtn} onPress={() => handleOperator('÷')}>
+            <Text style={styles.orangeTxt}>÷</Text>
           </TouchableOpacity>
         </View>
 
         {/* Row 2 */}
         <View style={styles.row}>
-          <TouchableOpacity style={styles.btn} onPress={() => handleNumber('7')}>
-            <Text style={styles.btnNumText}>7</Text>
+          <TouchableOpacity style={styles.keyBtn} onPress={() => handleNumber('7')}>
+            <Text style={styles.numTxt}>7</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.btn} onPress={() => handleNumber('8')}>
-            <Text style={styles.btnNumText}>8</Text>
+          <TouchableOpacity style={styles.keyBtn} onPress={() => handleNumber('8')}>
+            <Text style={styles.numTxt}>8</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.btn} onPress={() => handleNumber('9')}>
-            <Text style={styles.btnNumText}>9</Text>
+          <TouchableOpacity style={styles.keyBtn} onPress={() => handleNumber('9')}>
+            <Text style={styles.numTxt}>9</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.btn, styles.btnOp]} onPress={() => handleOperator('×')}>
-            <Text style={styles.btnOpText}>×</Text>
+          <TouchableOpacity style={styles.keyBtn} onPress={() => handleOperator('×')}>
+            <Text style={styles.orangeTxt}>×</Text>
           </TouchableOpacity>
         </View>
 
         {/* Row 3 */}
         <View style={styles.row}>
-          <TouchableOpacity style={styles.btn} onPress={() => handleNumber('4')}>
-            <Text style={styles.btnNumText}>4</Text>
+          <TouchableOpacity style={styles.keyBtn} onPress={() => handleNumber('4')}>
+            <Text style={styles.numTxt}>4</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.btn} onPress={() => handleNumber('5')}>
-            <Text style={styles.btnNumText}>5</Text>
+          <TouchableOpacity style={styles.keyBtn} onPress={() => handleNumber('5')}>
+            <Text style={styles.numTxt}>5</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.btn} onPress={() => handleNumber('6')}>
-            <Text style={styles.btnNumText}>6</Text>
+          <TouchableOpacity style={styles.keyBtn} onPress={() => handleNumber('6')}>
+            <Text style={styles.numTxt}>6</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.btn, styles.btnOp]} onPress={() => handleOperator('-')}>
-            <Text style={styles.btnOpText}>-</Text>
+          <TouchableOpacity style={styles.keyBtn} onPress={() => handleOperator('−')}>
+            <Text style={styles.orangeTxt}>−</Text>
           </TouchableOpacity>
         </View>
 
         {/* Row 4 */}
         <View style={styles.row}>
-          <TouchableOpacity style={styles.btn} onPress={() => handleNumber('1')}>
-            <Text style={styles.btnNumText}>1</Text>
+          <TouchableOpacity style={styles.keyBtn} onPress={() => handleNumber('1')}>
+            <Text style={styles.numTxt}>1</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.btn} onPress={() => handleNumber('2')}>
-            <Text style={styles.btnNumText}>2</Text>
+          <TouchableOpacity style={styles.keyBtn} onPress={() => handleNumber('2')}>
+            <Text style={styles.numTxt}>2</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.btn} onPress={() => handleNumber('3')}>
-            <Text style={styles.btnNumText}>3</Text>
+          <TouchableOpacity style={styles.keyBtn} onPress={() => handleNumber('3')}>
+            <Text style={styles.numTxt}>3</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.btn, styles.btnOp]} onPress={() => handleOperator('+')}>
-            <Text style={styles.btnOpText}>+</Text>
+          <TouchableOpacity style={styles.keyBtn} onPress={() => handleOperator('+')}>
+            <Text style={styles.orangeTxt}>+</Text>
           </TouchableOpacity>
         </View>
 
         {/* Row 5 */}
         <View style={styles.row}>
-          <TouchableOpacity style={[styles.btn, { flex: 2 }]} onPress={() => handleNumber('0')}>
-            <Text style={styles.btnNumText}>0</Text>
+          <TouchableOpacity style={styles.keyBtn} onPress={handleClear}>
+            <Text style={styles.orangeTxt}>⟲</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.btn} onPress={() => handleNumber('.')}>
-            <Text style={styles.btnNumText}>.</Text>
+          <TouchableOpacity style={styles.keyBtn} onPress={() => handleNumber('0')}>
+            <Text style={styles.numTxt}>0</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.btn, styles.btnEqual]} onPress={handleEquals}>
-            <Text style={styles.btnEqualText}>=</Text>
+          <TouchableOpacity style={styles.keyBtn} onPress={() => handleNumber('.')}>
+            <Text style={styles.numTxt}>.</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.keyBtn, styles.equalBtn]} onPress={handleEquals}>
+            <Text style={styles.equalTxt}>=</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -214,88 +225,103 @@ export default function CalculatorVault({ onUnlock }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#090d16',
-    justifyContent: 'space-between',
-    padding: 16,
+    backgroundColor: '#ffffff',
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight || 20 : 0,
   },
-  header: {
+  headerBar: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 10,
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
   },
-  headerTitle: {
-    color: '#94a3b8',
-    fontSize: 16,
+  headerIconBtn: {
+    padding: 6,
+  },
+  headerIconTxt: {
+    fontSize: 20,
+    color: '#4b5563',
+  },
+  menuIconTxt: {
+    fontSize: 22,
+    color: '#4b5563',
     fontWeight: 'bold',
   },
-  messageText: {
-    color: '#06b6d4',
-    fontSize: 13,
-    marginTop: 6,
-    textAlign: 'center',
+  tabsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
   },
-  displayContainer: {
-    backgroundColor: '#0f172a',
-    borderRadius: 20,
-    padding: 20,
+  activeTab: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  inactiveTab: {
+    fontSize: 17,
+    fontWeight: '400',
+    color: '#9ca3af',
+  },
+  displayArea: {
+    flex: 1,
+    justifyContent: 'flex-end',
     alignItems: 'flex-end',
-    justifyContent: 'center',
-    minHeight: 120,
-    borderWidth: 1,
-    borderColor: '#1e293b',
+    paddingHorizontal: 24,
+    paddingBottom: 24,
   },
-  historyText: {
-    color: '#64748b',
-    fontSize: 14,
+  historyTxt: {
+    fontSize: 18,
+    color: '#9ca3af',
+    marginBottom: 8,
   },
-  displayText: {
-    color: '#ffffff',
-    fontSize: 40,
-    fontWeight: 'bold',
-    marginTop: 8,
+  displayTxt: {
+    fontSize: 56,
+    fontWeight: '400',
+    color: '#111827',
+    textAlign: 'right',
   },
-  grid: {
+  keypad: {
+    paddingHorizontal: 16,
+    paddingBottom: Platform.OS === 'ios' ? 20 : 28,
     gap: 12,
-    marginBottom: 20,
   },
   row: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     gap: 12,
   },
-  btn: {
+  keyBtn: {
     flex: 1,
-    height: 70,
-    borderRadius: 20,
-    backgroundColor: '#1e293b',
+    height: 72,
+    borderRadius: 22,
+    backgroundColor: '#ffffff',
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: '#f3f4f6',
   },
-  btnNumText: {
-    color: '#ffffff',
+  numTxt: {
     fontSize: 26,
+    color: '#111827',
+    fontWeight: '400',
+  },
+  orangeTxt: {
+    fontSize: 24,
+    color: '#ea580c',
+    fontWeight: '500',
+  },
+  equalBtn: {
+    backgroundColor: '#ea580c',
+    borderColor: '#ea580c',
+  },
+  equalTxt: {
+    fontSize: 30,
+    color: '#ffffff',
     fontWeight: '600',
-  },
-  btnFunc: {
-    backgroundColor: '#334155',
-  },
-  btnFuncText: {
-    color: '#38bdf8',
-    fontSize: 20,
-    fontWeight: 'bold',
-  },
-  btnOp: {
-    backgroundColor: '#0891b2',
-  },
-  btnOpText: {
-    color: '#ffffff',
-    fontSize: 28,
-    fontWeight: 'bold',
-  },
-  btnEqual: {
-    backgroundColor: '#06b6d4',
-  },
-  btnEqualText: {
-    color: '#ffffff',
-    fontSize: 32,
-    fontWeight: 'bold',
   },
 });

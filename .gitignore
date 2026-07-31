@@ -12,6 +12,7 @@ client/dist-ssr/
 # Database & Environment
 server/uploads/*
 !server/uploads/.gitkeep
+*.db
 .env
 .env.local
 

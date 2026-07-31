@@ -28,32 +28,32 @@ const otpStore = new Map();
 // Register
 router.post('/register', async (req, res) => {
   try {
-    const { fullname, username, email, password, bio } = req.body;
+    let { fullname, username, email, password, bio } = req.body;
 
-    if (!fullname || !username || !email || !password) {
-      return res.status(400).json({ error: 'All required fields must be provided.' });
+    if (!fullname || !username || !password) {
+      return res.status(400).json({ error: 'Full Name, Username, and Password are required.' });
     }
 
     if (password.length < 8) {
       return res.status(400).json({ error: 'Password must be at least 8 characters long.' });
     }
 
+    const cleanUsername = username.trim().toLowerCase();
+    const cleanEmail = email && email.trim() ? email.trim().toLowerCase() : `${cleanUsername}@bytechat.app`;
+
     const db = await getDb();
 
     // Check if username or email already exists
-    const cleanUsername = username.trim().toLowerCase();
-    const cleanEmail = email.trim().toLowerCase();
-
     const existingUser = await db.get(
-      'SELECT username, email FROM users WHERE username = ? OR email = ?',
+      'SELECT username, email FROM users WHERE LOWER(username) = ? OR LOWER(email) = ?',
       [cleanUsername, cleanEmail]
     );
 
     if (existingUser) {
-      if (existingUser.username === cleanUsername) {
+      if (existingUser.username.toLowerCase() === cleanUsername) {
         return res.status(400).json({ error: 'Username is already taken.' });
       }
-      if (existingUser.email === cleanEmail) {
+      if (existingUser.email.toLowerCase() === cleanEmail) {
         return res.status(400).json({ error: 'Email is already registered.' });
       }
     }
@@ -65,7 +65,7 @@ router.post('/register', async (req, res) => {
     await db.run(
       `INSERT INTO users (id, fullname, username, email, password, unique_id, bio, status) 
        VALUES (?, ?, ?, ?, ?, ?, ?, 'online')`,
-      [userId, fullname.trim(), cleanUsername, cleanEmail, hashedPassword, uniqueId, bio || 'Hey there! I am using ChatNest.']
+      [userId, fullname.trim(), cleanUsername, cleanEmail, hashedPassword, uniqueId, bio || 'Hey there! I am using ByteChat.']
     );
 
     // Initialize Default User Settings
@@ -97,27 +97,27 @@ router.post('/register', async (req, res) => {
 // Login
 router.post('/login', async (req, res) => {
   try {
-    const { loginIdentifier, password } = req.body; // username or email
+    const { loginIdentifier, password } = req.body; // username, email, or unique_id
 
     if (!loginIdentifier || !password) {
-      return res.status(400).json({ error: 'Username/Email and Password are required.' });
+      return res.status(400).json({ error: 'Username/Email/ID and Password are required.' });
     }
 
     const db = await getDb();
-    const cleanId = loginIdentifier.trim().toLowerCase();
+    const cleanId = loginIdentifier.trim();
 
     const user = await db.get(
-      'SELECT * FROM users WHERE username = ? OR email = ?',
-      [cleanId, cleanId]
+      'SELECT * FROM users WHERE LOWER(username) = ? OR LOWER(email) = ? OR UPPER(unique_id) = ?',
+      [cleanId.toLowerCase(), cleanId.toLowerCase(), cleanId.toUpperCase()]
     );
 
     if (!user) {
-      return res.status(400).json({ error: 'Invalid username/email or password.' });
+      return res.status(400).json({ error: 'Invalid Username, Email, or Unique ID or password.' });
     }
 
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
-      return res.status(400).json({ error: 'Invalid username/email or password.' });
+      return res.status(400).json({ error: 'Invalid Username, Email, or Unique ID or password.' });
     }
 
     // Update status to online

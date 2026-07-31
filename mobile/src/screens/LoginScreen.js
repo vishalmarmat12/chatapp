@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
   Text,
@@ -9,9 +9,11 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
-  ScrollView
+  ScrollView,
+  Modal
 } from 'react-native';
 import { useAuth } from '../context/AuthContext';
+import { getStoredServerHost, setCustomServerHost, PRODUCTION_SERVER_HOST, LOCAL_EMULATOR_HOST } from '../config/api';
 
 export default function LoginScreen({ navigation }) {
   const { login } = useAuth();
@@ -19,17 +21,43 @@ export default function LoginScreen({ navigation }) {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
+  // Server Host Config Modal State
+  const [showServerModal, setShowServerModal] = useState(false);
+  const [currentHost, setCurrentHost] = useState('');
+  const [inputHost, setInputHost] = useState('');
+
+  useEffect(() => {
+    loadServerHost();
+  }, []);
+
+  const loadServerHost = async () => {
+    const host = await getStoredServerHost();
+    setCurrentHost(host);
+    setInputHost(host);
+  };
+
+  const handleSaveHost = async (hostToSave) => {
+    await setCustomServerHost(hostToSave);
+    await loadServerHost();
+    setShowServerModal(false);
+    Alert.alert('Server Updated', `Backend server set to:\n${hostToSave || PRODUCTION_SERVER_HOST}`);
+  };
+
   const handleLogin = async () => {
-    if (!loginIdentifier || !password) {
-      Alert.alert('Error', 'Please enter your username/email and password.');
+    if (!loginIdentifier.trim() || !password) {
+      Alert.alert('Error', 'Please enter your Username, Email, or Unique ID and password.');
       return;
     }
 
     setLoading(true);
     try {
-      await login(loginIdentifier, password);
+      await login(loginIdentifier.trim(), password);
     } catch (err) {
-      Alert.alert('Login Failed', err.response?.data?.error || 'Invalid credentials.');
+      console.log('Login error:', err);
+      const errMsg = err.response?.data?.error 
+        || (err.message?.includes('Network Error') ? `Unable to reach backend server at:\n${currentHost}\n\nTap "⚙️ Server Settings" below to configure server address.` : err.message)
+        || 'Login failed.';
+      Alert.alert('Login Failed', errMsg);
     } finally {
       setLoading(false);
     }
@@ -52,10 +80,10 @@ export default function LoginScreen({ navigation }) {
 
         {/* Input Form */}
         <View style={styles.form}>
-          <Text style={styles.label}>Username or Email</Text>
+          <Text style={styles.label}>Username, Email, or Unique ID</Text>
           <TextInput
             style={styles.input}
-            placeholder="@username or email"
+            placeholder="username, email, or BYTXXXXX"
             placeholderTextColor="#64748b"
             value={loginIdentifier}
             onChangeText={setLoginIdentifier}
@@ -92,8 +120,65 @@ export default function LoginScreen({ navigation }) {
               Don't have an account? <Text style={styles.highlight}>Create Account</Text>
             </Text>
           </TouchableOpacity>
+
+          {/* Server Config Trigger Button */}
+          <TouchableOpacity
+            style={styles.serverConfigBtn}
+            onPress={() => setShowServerModal(true)}
+          >
+            <Text style={styles.serverConfigBtnTxt}>⚙️ Server Settings ({currentHost.replace('https://', '').replace('http://', '')})</Text>
+          </TouchableOpacity>
         </View>
       </ScrollView>
+
+      {/* Server Settings Modal */}
+      <Modal visible={showServerModal} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <Text style={styles.modalTitle}>⚙️ Backend Server Host</Text>
+            <Text style={styles.modalSubtitle}>Configure API address for real device or cloud server connection.</Text>
+
+            <TextInput
+              style={styles.input}
+              value={inputHost}
+              onChangeText={setInputHost}
+              placeholder="https://chatapp-calculator-vault.onrender.com"
+              placeholderTextColor="#64748b"
+              autoCapitalize="none"
+            />
+
+            <View style={styles.presetContainer}>
+              <TouchableOpacity
+                style={styles.presetBadge}
+                onPress={() => setInputHost(PRODUCTION_SERVER_HOST)}
+              >
+                <Text style={styles.presetBadgeTxt}>🌐 Cloud Host</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.presetBadge}
+                onPress={() => setInputHost(LOCAL_EMULATOR_HOST)}
+              >
+                <Text style={styles.presetBadgeTxt}>💻 Local Host</Text>
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity
+              style={styles.button}
+              onPress={() => handleSaveHost(inputHost)}
+            >
+              <Text style={styles.buttonText}>Save & Apply Server</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.cancelBtn}
+              onPress={() => setShowServerModal(false)}
+            >
+              <Text style={styles.cancelBtnTxt}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -183,5 +268,72 @@ const styles = StyleSheet.create({
   highlight: {
     color: '#06b6d4',
     fontWeight: '700',
+  },
+  serverConfigBtn: {
+    marginTop: 16,
+    paddingVertical: 8,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#1e293b',
+    borderRadius: 10,
+    backgroundColor: '#020617',
+  },
+  serverConfigBtnTxt: {
+    fontSize: 11,
+    color: '#64748b',
+    fontWeight: '600',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContainer: {
+    width: '100%',
+    backgroundColor: '#0f172a',
+    borderRadius: 20,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: '#334155',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#ffffff',
+    marginBottom: 4,
+  },
+  modalSubtitle: {
+    fontSize: 12,
+    color: '#94a3b8',
+    marginBottom: 16,
+  },
+  presetContainer: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 12,
+  },
+  presetBadge: {
+    flex: 1,
+    backgroundColor: '#1e293b',
+    paddingVertical: 8,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  presetBadgeTxt: {
+    color: '#06b6d4',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  cancelBtn: {
+    marginTop: 12,
+    alignItems: 'center',
+    paddingVertical: 10,
+  },
+  cancelBtnTxt: {
+    color: '#94a3b8',
+    fontSize: 13,
+    fontWeight: '600',
   },
 });

@@ -55,14 +55,14 @@ export default function Login({ onSwitchToRegister }) {
         <form onSubmit={handleSubmit} className="space-y-5">
           <div>
             <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">
-              Username or Email
+              Username, Email, or Unique ID
             </label>
             <div className="relative">
               <User className="w-5 h-5 text-slate-500 absolute left-3.5 top-3" />
               <input
                 type="text"
                 required
-                placeholder="@username or email"
+                placeholder="username, email, or BYTXXXXX"
                 value={loginIdentifier}
                 onChange={(e) => setLoginIdentifier(e.target.value)}
                 className="w-full bg-slate-950/80 border border-slate-800 rounded-xl py-3 pl-11 pr-4 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition"

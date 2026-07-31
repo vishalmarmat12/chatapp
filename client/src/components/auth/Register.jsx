@@ -98,13 +98,12 @@ export default function Register({ onSwitchToLogin }) {
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">Email Address</label>
+            <label className="block text-xs font-semibold text-slate-300 mb-1">Email Address (Optional)</label>
             <div className="relative">
               <Mail className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
               <input
                 type="email"
-                required
-                placeholder="rahul@example.com"
+                placeholder="rahul@example.com (Optional)"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full bg-slate-950/80 border border-slate-800 rounded-xl py-2.5 pl-10 pr-3.5 text-sm text-white focus:outline-none focus:border-cyan-500"
