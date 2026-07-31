@@ -5,6 +5,7 @@
   "scripts": {
     "start": "expo start",
     "tunnel": "expo start --tunnel",
+    "build:apk": "eas build --platform android --profile preview",
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web"
@@ -27,7 +28,8 @@
     "socket.io-client": "^4.8.1"
   },
   "devDependencies": {
-    "@babel/core": "^7.24.0"
+    "@babel/core": "^7.24.0",
+    "eas-cli": "^12.0.0"
   },
   "private": true
 }
