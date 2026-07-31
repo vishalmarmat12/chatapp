@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: calculator-vault-chat
+    name: chatapp-calculator-vault
     env: node
     region: oregon
     plan: free
