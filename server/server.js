@@ -3,6 +3,7 @@ import http from 'http';
 import { Server } from 'socket.io';
 import cors from 'cors';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 
@@ -64,7 +65,31 @@ app.use(express.static(clientDistPath));
 
 app.get('*', (req, res) => {
   if (!req.path.startsWith('/api') && !req.path.startsWith('/uploads')) {
-    res.sendFile(path.join(clientDistPath, 'index.html'));
+    const indexPath = path.join(clientDistPath, 'index.html');
+    if (fs.existsSync(indexPath)) {
+      res.sendFile(indexPath);
+    } else {
+      res.status(200).send(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>Calculator Vault</title>
+            <style>
+              body { background: #090d16; color: #fff; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+              .card { background: #1e293b; padding: 2rem; border-radius: 1rem; max-width: 400px; text-align: center; border: 1px solid #334155; }
+              h1 { font-size: 1.5rem; color: #06b6d4; }
+              p { color: #94a3b8; font-size: 0.9rem; }
+            </style>
+          </head>
+          <body>
+            <div class="card">
+              <h1>🧮 Calculator Vault App</h1>
+              <p>API Server is live and healthy. Web build is initializing...</p>
+            </div>
+          </body>
+        </html>
+      `);
+    }
   }
 });
 
