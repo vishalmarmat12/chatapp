@@ -59,37 +59,40 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'Calculator Vault API Server is running smoothly!' });
 });
 
-// Serve Client Web Production Build
+// Catch-all API 404 handler
+app.use('/api/*', (req, res) => {
+  res.status(404).json({ error: 'API endpoint not found.' });
+});
+
+// Serve Client Web Production Build SPA Fallback
 const clientDistPath = path.join(__dirname, '../client/dist');
 app.use(express.static(clientDistPath));
 
 app.get('*', (req, res) => {
-  if (!req.path.startsWith('/api') && !req.path.startsWith('/uploads')) {
-    const indexPath = path.join(clientDistPath, 'index.html');
-    if (fs.existsSync(indexPath)) {
-      res.sendFile(indexPath);
-    } else {
-      res.status(200).send(`
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <title>Calculator Vault</title>
-            <style>
-              body { background: #090d16; color: #fff; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; }
-              .card { background: #1e293b; padding: 2rem; border-radius: 1rem; max-width: 400px; text-align: center; border: 1px solid #334155; }
-              h1 { font-size: 1.5rem; color: #06b6d4; }
-              p { color: #94a3b8; font-size: 0.9rem; }
-            </style>
-          </head>
-          <body>
-            <div class="card">
-              <h1>🧮 Calculator Vault App</h1>
-              <p>API Server is live and healthy. Web build is initializing...</p>
-            </div>
-          </body>
-        </html>
-      `);
-    }
+  const indexPath = path.join(clientDistPath, 'index.html');
+  if (fs.existsSync(indexPath)) {
+    res.sendFile(indexPath);
+  } else {
+    res.status(200).send(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Calculator Vault</title>
+          <style>
+            body { background: #090d16; color: #fff; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+            .card { background: #1e293b; padding: 2rem; border-radius: 1rem; max-width: 400px; text-align: center; border: 1px solid #334155; }
+            h1 { font-size: 1.5rem; color: #06b6d4; }
+            p { color: #94a3b8; font-size: 0.9rem; }
+          </style>
+        </head>
+        <body>
+          <div class="card">
+            <h1>🧮 Calculator Vault App</h1>
+            <p>API Server is live and healthy. Web build is initializing...</p>
+          </div>
+        </body>
+      </html>
+    `);
   }
 });
 
